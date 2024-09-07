@@ -1,13 +1,13 @@
 import torch
 import torch.optim as optim
-from .model import PPOModel
+from .model import EnhancedPPOModel
 from .ppo import PPOTrainer
 import events as e
 
 def setup_training(self):
     """Initialize training-specific parameters."""
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    self.model = PPOModel().to(self.device)
+    self.model = EnhancedPPOModel().to(self.device)
     self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
     self.trainer = PPOTrainer(self.model, self.optimizer, device=self.device)
     self.logger.info("PPO training initialized.")

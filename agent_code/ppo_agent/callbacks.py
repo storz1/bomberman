@@ -68,9 +68,8 @@ def preprocess_game_state(game_state):
     
     for i in range(len(other_players)):
         bomb_possible_all[i + 1] = other_players[i][2]
-      
-
-    print(field)
+     
+        
     return field, bomb_possible_all
 
 def select_action(action_probs):

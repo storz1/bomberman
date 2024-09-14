@@ -137,6 +137,9 @@ class PPOTrainer:
                 torch_field = torch.stack(self.memory_field)
                 torch_bomb_possible = torch.stack(self.memory_bomb_possible)
                 torch_actions = torch.tensor(np.array(self.memory_actions), dtype=torch.int64, device=self.device)
+            
+                #print(len(torch_actions))
+                #print(len(torch_field ))
                 advantage = (torch_return - self.model(torch_field, torch_bomb_possible).gather(1, torch_actions.squeeze(-1).unsqueeze(-1)))
                 
             
@@ -153,8 +156,6 @@ class PPOTrainer:
                 loss.backward()
                 self.optimizer.step()
                                 
-                
-                
             except Exception as e:
                 print(f"Error during training loop: {e}")
 
@@ -168,6 +169,7 @@ class PPOTrainer:
     def compute_returns(self, rewards):
         returns = []
         R = 0
+        #print("len rewards = " +str(len(rewards)))
         for r in reversed(rewards):
             R = r + self.gamma * R
             returns.insert(0, R)

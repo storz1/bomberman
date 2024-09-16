@@ -77,7 +77,6 @@ class ActorCritic(nn.Module):
         
         x_critic = self.critic_conv(state)
         x_critic = x_critic.view(x_critic.size(0), -1)  # Flattenan
-        
         state_values = self.critic_fc(x_critic)
         
         return action_logprobs, state_values, dist_entropy

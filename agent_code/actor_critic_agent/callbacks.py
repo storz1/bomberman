@@ -18,8 +18,9 @@ def act(self, game_state: dict):
     print(map_info.dim())
     with torch.no_grad():
         action, action_logprob, state_val = self.model.act(map_info)
-    print("action = " +str(action))
-    return action
+    actions =  ['UP', 'DOWN', 'LEFT', 'RIGHT', 'BOMB', 'WAIT']
+    print(actions[action.item()])
+    return actions[action.item()]
 
 def preprocess_game_state(game_state):
     """Convert the game state to a format suitable for the model."""

@@ -1,42 +1,83 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
+from torch.distributions import Categorical
+import torch
 
-class EnhancedPPOModel(nn.Module):
-    def __init__(self, output_dim=6):
-        super(EnhancedPPOModel, self).__init__()
+class ActorCritic(nn.Module):
+    def __init__(self, action_dim):
+        super(ActorCritic, self).__init__()
+
+
+        # Actor network
+        self.actor_conv = nn.Sequential(
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.ReLU()
+        )
+        self.actor_fc = nn.Sequential(
+            nn.Linear(128 * 17 * 17, 64),  # Adjust input size as needed
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, action_dim),
+            nn.Softmax(dim=-1)
+        )
+
         
-        # Convolutional layers for processing the map inputs
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
+        # Critic network
+        self.critic_conv = nn.Sequential(
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.ReLU()
+        )
+        self.critic_fc = nn.Sequential(
+            nn.Linear(128 * 17 * 17, 64),  # Adjust input size as needed
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, 1)
+        )
         
-        # Calculate the size after convolution to flatten the tensor
-        conv_output_dim = 128 * 17 * 17
-        player_info_dim = 4
         
-        # Fully connected layers for combining map features with player information
-        self.fc1 = nn.Linear(conv_output_dim + player_info_dim, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, output_dim)
+
+    def forward(self):
+        raise NotImplementedError
+    
+
+    def act(self, state):#
+        x = self.actor_conv(state)
+        x = x.view(x.size(0), -1)  # Flatten
+        action_probs = self.actor_fc(x)
         
-    def forward(self, map_info, bomb_info):
-        # Combine the two maps along the channel dimension
-        # Pass the combined map through the convolutional layers
-        x = F.relu(self.conv1(map_info))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
+        dist = Categorical(action_probs)
+        action = dist.sample()
+        action_logprob = dist.log_prob(action)
         
-        # Flatten the output of the conv layers
-        x = x.view(x.size(0), -1)
+        # Critic forward pass
+        x_critic = self.critic_conv(state)
+        x_critic = x_critic.view(x_critic.size(0), -1)  # Flatten
+        state_val = self.critic_fc(x_critic)
         
-        # Concatenate the flattened map features with player information
-        x = torch.cat((x, bomb_info), dim=1)
+        return action.detach(), action_logprob.detach(), state_val.detach()
+
+    def evaluate(self, state, action):
+        x = self.actor_conv(state)
+        x = x.view(x.size(0), -1)  # Flatten
+        action_probs = self.actor_fc(x)
         
-        # Pass the combined features through the fully connected layers
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        dist = Categorical(action_probs)
+
+        action_logprobs = dist.log_prob(action)
+        dist_entropy = dist.entropy()
         
-        # Return the output as a probability distribution over possible actions
-        return F.softmax(x, dim=-1)
+        x_critic = self.critic_conv(state)
+        x_critic = x_critic.view(x_critic.size(0), -1)  # Flattenan
+        
+        state_values = self.critic_fc(x_critic)
+        
+        return action_logprobs, state_values, dist_entropy

@@ -1,16 +1,50 @@
 import torch
 import torch.optim as optim
-from .model import EnhancedPPOModel
-from .ppo import PPOTrainer
+from ppo import PPO
 import events as e
+import os
+import time
 
 def setup_training(self):
     """Initialize training-specific parameters."""
-    self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    self.model = EnhancedPPOModel().to(self.device)
-    self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
-    self.trainer = PPOTrainer(self.model, self.optimizer, device=self.device)
-    self.logger.info("PPO training initialized.")
+    
+    K_epochs = 10
+    eps_clip = 0.2
+    gamma = 0.99
+    
+    lr_actor = 0.0003
+    lr_critic = 0.001
+    
+    random_seed = 0
+
+    self.log_dir = "PPO_logs"
+    if not os.path.exists(self.log_dir):
+        os.makedirs(self.log_dir)
+    
+    self.run_num = 0
+    self.current_num_files = next(os.walk(self.log_dir))[2]
+    self.run_num = len(self.current_num_files)
+    self.log_f_name = self.log_dir + '/PPO_' + "log_" + str(self.run_num) + ".csv"
+
+    print("current logging run number for : ", self.run_num)
+    print("logging at : " + self.log_f_name)
+    
+    self.run_num_pretrained = 0
+    self.directory = "PPO_preTrained"
+    if not os.path.exists(self.directory):
+        os.makedirs(self.directory)
+    
+    self.checkpoint_path = self.directory + "PPO_{}_{}.pth".format( random_seed, self.run_num_pretrained)
+    
+    self.model = PPO(player_info_dim = 4, action_dim = 6, lr_actor=lr_actor, lr_critic=lr_critic, gamma=gamma, K_epochs=K_epochs, eps_clip=eps_clip, device='cpu')
+        
+
+    
+    # logging file
+    self.log_f = open(self.log_f_name,"w+")
+    self.log_f.write('episode,timestep,reward\n')
+
+
 
 def game_events_occurred(self, old_game_state, self_action, new_game_state, events):
     """Collect data for training."""

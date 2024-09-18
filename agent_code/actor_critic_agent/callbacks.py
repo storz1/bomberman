@@ -1,11 +1,11 @@
 import torch
-from .model import ActorCritic  # Import the correct model
+from agent_code.actor_critic_agent.model import ActorCritic  # Import the correct model
 
 def setup(self):
     """This is run once before the first game starts."""
     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    self.model = ActorCritic(6).to(self.device)
-    self.model.eval()  # Set the model to evaluation mode
+    self.actor_critic = ActorCritic(6).to(self.device)
+    self.actor_critic.eval()  # Set the model to evaluation mode
     self.logger.info("Enhanced PPO model loaded.")
 
 def act(self, game_state: dict):
@@ -14,12 +14,10 @@ def act(self, game_state: dict):
        
     # Convert the preprocessed state components to tensors and send to the correct device
     map_info = torch.tensor(map_info, dtype=torch.float32, device=self.device).unsqueeze(0).unsqueeze(1)
-
-    print(map_info.dim())
     with torch.no_grad():
-        action, action_logprob, state_val = self.model.act(map_info)
+        action, action_logprob, state_val = self.actor_critic.act(map_info)
     actions =  ['UP', 'DOWN', 'LEFT', 'RIGHT', 'BOMB', 'WAIT']
-    print(actions[action.item()])
+    
     return actions[action.item()]
 
 def preprocess_game_state(game_state):

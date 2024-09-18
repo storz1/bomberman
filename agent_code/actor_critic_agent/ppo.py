@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from model import ActorCritic
+from agent_code.actor_critic_agent.model import ActorCritic
 
 
 class RolloutBuffer:
@@ -10,7 +10,6 @@ class RolloutBuffer:
         self.logprobs = []
         self.rewards = []
         self.state_values = []
-        self.is_terminals = []
     
 
     def clear(self):
@@ -19,11 +18,10 @@ class RolloutBuffer:
         del self.logprobs[:]
         del self.rewards[:]
         del self.state_values[:]
-        del self.is_terminals[:]
         
         
 class PPO:
-    def __init__(self, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, device='cpu'):
+    def __init__(self, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, device='cpu'):
 
 
         self.gamma = gamma
@@ -33,30 +31,18 @@ class PPO:
         
         self.buffer = RolloutBuffer()
 
-        self.policy = ActorCritic(state_dim, action_dim).to(device)
+        self.policy = ActorCritic(action_dim).to(device)
         self.optimizer = torch.optim.Adam([
-                        {'params': self.policy.actor.parameters(), 'lr': lr_actor},
-                        {'params': self.policy.critic.parameters(), 'lr': lr_critic}
+                        {'params': self.policy.actor_conv.parameters(), 'lr': lr_actor},
+                        {'params': self.policy.actor_fc.parameters(), 'lr': lr_actor},
+                        {'params': self.policy.critic_conv.parameters(), 'lr': lr_critic},
+                        {'params': self.policy.critic_fc.parameters(), 'lr': lr_critic}
                     ])
 
-        self.policy_old = ActorCritic(state_dim, action_dim).to(device)
+        self.policy_old = ActorCritic(action_dim).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
         
         self.MseLoss = nn.MSELoss()
-
-
-    def select_action(self, state):
-
-        with torch.no_grad():
-            state = torch.FloatTensor(state).to(self.device)
-            action, action_logprob, state_val = self.policy_old.act(state)
-            
-        self.buffer.states.append(state)
-        self.buffer.actions.append(action)
-        self.buffer.logprobs.append(action_logprob)
-        self.buffer.state_values.append(state_val)
-
-        return action.item()
 
 
     def update(self):
@@ -64,9 +50,7 @@ class PPO:
         # Monte Carlo estimate of returns
         rewards = []
         discounted_reward = 0
-        for reward, is_terminal in zip(reversed(self.buffer.rewards), reversed(self.buffer.is_terminals)):
-            if is_terminal:
-                discounted_reward = 0
+        for reward in reversed(self.buffer.rewards):
             discounted_reward = reward + (self.gamma * discounted_reward)
             rewards.insert(0, discounted_reward)
             
@@ -76,6 +60,7 @@ class PPO:
 
         # convert list to tensor
         old_states = torch.squeeze(torch.stack(self.buffer.states, dim=0)).detach().to(self.device)
+        old_states = old_states.unsqueeze(1)
         old_actions = torch.squeeze(torch.stack(self.buffer.actions, dim=0)).detach().to(self.device)
         old_logprobs = torch.squeeze(torch.stack(self.buffer.logprobs, dim=0)).detach().to(self.device)
         old_state_values = torch.squeeze(torch.stack(self.buffer.state_values, dim=0)).detach().to(self.device)

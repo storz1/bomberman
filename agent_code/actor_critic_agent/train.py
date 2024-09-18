@@ -1,12 +1,15 @@
 import torch
 import torch.optim as optim
-from ppo import PPO
+from agent_code.actor_critic_agent.ppo import PPO
 import events as e
 import os
 import time
+import numpy as np
 
 def setup_training(self):
     """Initialize training-specific parameters."""
+    
+    current_path_to_game = os.getcwd()
     
     K_epochs = 10
     eps_clip = 0.2
@@ -14,10 +17,8 @@ def setup_training(self):
     
     lr_actor = 0.0003
     lr_critic = 0.001
-    
-    random_seed = 0
 
-    self.log_dir = "PPO_logs"
+    self.log_dir = current_path_to_game +"/PPO_logs"
     if not os.path.exists(self.log_dir):
         os.makedirs(self.log_dir)
     
@@ -26,17 +27,17 @@ def setup_training(self):
     self.run_num = len(self.current_num_files)
     self.log_f_name = self.log_dir + '/PPO_' + "log_" + str(self.run_num) + ".csv"
 
-    print("current logging run number for : ", self.run_num)
-    print("logging at : " + self.log_f_name)
+    #print("current logging run number for : ", self.run_num)
+    #print("logging at : " + self.log_f_name)
     
     self.run_num_pretrained = 0
-    self.directory = "PPO_preTrained"
+    self.directory = current_path_to_game + "/PPO_preTrained"
     if not os.path.exists(self.directory):
         os.makedirs(self.directory)
     
-    self.checkpoint_path = self.directory + "PPO_{}_{}.pth".format( random_seed, self.run_num_pretrained)
+    self.checkpoint_path = self.directory + "PPO_{}.pth".format( self.run_num_pretrained)
     
-    self.model = PPO(player_info_dim = 4, action_dim = 6, lr_actor=lr_actor, lr_critic=lr_critic, gamma=gamma, K_epochs=K_epochs, eps_clip=eps_clip, device='cpu')
+    self.model = PPO(action_dim = 6, lr_actor=lr_actor, lr_critic=lr_critic, gamma=gamma, K_epochs=K_epochs, eps_clip=eps_clip, device='cpu')
         
 
     
@@ -48,18 +49,67 @@ def setup_training(self):
 
 def game_events_occurred(self, old_game_state, self_action, new_game_state, events):
     """Collect data for training."""
+    
+    #data preprocessing to save data as tensor
+    
+    #Convert state into input of algorithm
+    field = old_game_state['field']
+    coins = old_game_state['coins']
+    bombs = old_game_state['bombs']
+    self_pos = old_game_state['self'][3]
+    other_players = old_game_state['others']
+    explosion_map = old_game_state['explosion_map']
+    
+    for i in range(len(coins)):
+        field[coins[i][0]][coins[i][1]] = -5
+        
+    for i in range(len(bombs)):
+        field[bombs[i][0][0]][bombs[i][0][1]] = bombs[i][1] + 10
+        
+    for i in range(len(explosion_map)):
+        for j in range(len(explosion_map[i])):
+            if(explosion_map[i][j]!=0):
+                field[i][j] = explosion_map[i][j]
+    
+    try:
+        field[self_pos[0]][self_pos[1]] = 20
+    except:
+        print("Own position error or player dead")
+    
+    try:
+        for i in range(len(other_players)):
+            field[other_players[i][3][0]][other_players[i][3][1]] = 21 + i
+    except:
+        print("Error with position from other players")
+        
+    actions = np.array(['UP', 'DOWN', 'LEFT', 'RIGHT', 'BOMB', 'WAIT'])
+    action_encoded = np.where(actions == self_action)[0]
+    
+    
+    
+    with torch.no_grad():
+        state = torch.FloatTensor(field).unsqueeze(0).unsqueeze(1).to(self.device)
+        action, action_logprob, state_val = self.model.policy_old.act(state)
+            
+    self.model.buffer.states.append(state)
+    self.model.buffer.actions.append(torch.tensor(action_encoded))
+    self.model.buffer.logprobs.append(action_logprob)
+    self.model.buffer.state_values.append(state_val)
+    
+    
+    
     reward = compute_reward_coin_pickup(events)
-    #print("old game state = " +str(old_game_state))
-    #print("new game state = " +str(new_game_state))
-    #print("action = " +str(self_action))
-    #print("reward = " +str(reward))
-    self.trainer.store_transition(old_game_state, self_action, reward, new_game_state)
-
+    self.model.buffer.rewards.append(reward)
+    
+    
+    
+    
+    
 def end_of_round(self, last_game_state, last_action, events):
     """Train the model after each round."""
-    #reward = compute_reward_coin_pickup(events)
-    #self.trainer.store_transition(last_game_state, last_action, reward, None)
-    self.trainer.train()
+    self.model.update()
+    
+    self.model.save(self.checkpoint_path)
 
 def compute_reward_coin_pickup(events):
     """Compute reward based on the events that occurred."""

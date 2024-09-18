@@ -17,7 +17,7 @@ class ActorCritic(nn.Module):
             nn.ReLU()
         )
         self.actor_fc = nn.Sequential(
-            nn.Linear(128 * 17 * 17, 64),  # Adjust input size as needed
+            nn.Linear(128*17 * 17, 64),  # Adjust input size as needed
             nn.Tanh(),
             nn.Linear(64, 64),
             nn.Tanh(),
@@ -36,7 +36,7 @@ class ActorCritic(nn.Module):
             nn.ReLU()
         )
         self.critic_fc = nn.Sequential(
-            nn.Linear(128 * 17 * 17, 64),  # Adjust input size as needed
+            nn.Linear(128* 17* 17, 64),  # Adjust input size as needed
             nn.Tanh(),
             nn.Linear(64, 64),
             nn.Tanh(),
@@ -51,7 +51,7 @@ class ActorCritic(nn.Module):
 
     def act(self, state):#
         x = self.actor_conv(state)
-        x = x.view(x.size(0), -1)  # Flatten
+        x = x.view(x.size(0), -1)  
         action_probs = self.actor_fc(x)
         
         dist = Categorical(action_probs)

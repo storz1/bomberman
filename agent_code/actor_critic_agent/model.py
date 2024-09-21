@@ -1,6 +1,5 @@
 import torch.nn as nn
 from torch.distributions import Categorical
-import torch
 
 class ActorCritic(nn.Module):
     def __init__(self, action_dim):
@@ -9,15 +8,15 @@ class ActorCritic(nn.Module):
 
         # Actor network
         self.actor_conv = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=1, stride=1, padding=0),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.ReLU()
+            nn.ReLU()#,
+            #nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            #nn.ReLU()
         )
         self.actor_fc = nn.Sequential(
-            nn.Linear(128*17 * 17, 64),  # Adjust input size as needed
+            nn.Linear(64*17 * 17, 64),  # Adjust input size as needed
             nn.Tanh(),
             nn.Linear(64, 64),
             nn.Tanh(),
@@ -28,15 +27,15 @@ class ActorCritic(nn.Module):
         
         # Critic network
         self.critic_conv = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=1, stride=1, padding=0),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.ReLU()
+            nn.ReLU()#,
+            #nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            #nn.ReLU()
         )
         self.critic_fc = nn.Sequential(
-            nn.Linear(128* 17* 17, 64),  # Adjust input size as needed
+            nn.Linear(64* 17* 17, 64),  # Adjust input size as needed
             nn.Tanh(),
             nn.Linear(64, 64),
             nn.Tanh(),

@@ -11,7 +11,7 @@ def setup_training(self):
     
     current_path_to_game = os.getcwd()
     
-    K_epochs = 10
+    K_epochs = 20
     eps_clip = 0.2
     gamma = 0.99
     
@@ -34,11 +34,18 @@ def setup_training(self):
     self.directory = current_path_to_game + "/PPO_preTrained"
     if not os.path.exists(self.directory):
         os.makedirs(self.directory)
-    
-    self.checkpoint_path = self.directory + "PPO_{}.pth".format( self.run_num_pretrained)
-    
-    self.model = PPO(action_dim = 6, lr_actor=lr_actor, lr_critic=lr_critic, gamma=gamma, K_epochs=K_epochs, eps_clip=eps_clip, device='cpu')
         
+    self.run_num_pretrained = next(os.walk(self.directory))[2]
+    self.last_trained_model = len(self.run_num_pretrained)
+    self.run_num_trainingsession = len(self.run_num_pretrained) +1
+    
+    self.checkpoint_path_load = self.directory + "/PPO_{}.pth".format( self.last_trained_model)
+    self.checkpoint_path_save = self.directory + "/PPO_{}.pth".format( self.run_num_trainingsession)
+    print("load model from path: " +str(self.checkpoint_path_load))
+    print("save trained model to path : " +str(self.checkpoint_path_save))
+    self.model = PPO(action_dim = 6, lr_actor=lr_actor, lr_critic=lr_critic, gamma=gamma, K_epochs=K_epochs, eps_clip=eps_clip, device='cpu')
+    if(self.last_trained_model != 0):
+        self.model.load(self.checkpoint_path_load)
 
     
     # logging file
@@ -107,9 +114,58 @@ def game_events_occurred(self, old_game_state, self_action, new_game_state, even
     
 def end_of_round(self, last_game_state, last_action, events):
     """Train the model after each round."""
+    #Convert state into input of algorithm
+    field = last_game_state['field']
+    coins = last_game_state['coins']
+    bombs = last_game_state['bombs']
+    self_pos = last_game_state['self'][3]
+    other_players = last_game_state['others']
+    explosion_map = last_game_state['explosion_map']
+    
+    for i in range(len(coins)):
+        field[coins[i][0]][coins[i][1]] = -5
+        
+    for i in range(len(bombs)):
+        field[bombs[i][0][0]][bombs[i][0][1]] = bombs[i][1] + 10
+        
+    for i in range(len(explosion_map)):
+        for j in range(len(explosion_map[i])):
+            if(explosion_map[i][j]!=0):
+                field[i][j] = explosion_map[i][j]
+    
+    try:
+        field[self_pos[0]][self_pos[1]] = 20
+    except:
+        print("Own position error or player dead")
+    
+    try:
+        for i in range(len(other_players)):
+            field[other_players[i][3][0]][other_players[i][3][1]] = 21 + i
+    except:
+        print("Error with position from other players")
+        
+    actions = np.array(['UP', 'DOWN', 'LEFT', 'RIGHT', 'BOMB', 'WAIT'])
+    action_encoded = np.where(actions == last_action)[0]
+    
+    
+    
+    with torch.no_grad():
+        state = torch.FloatTensor(field).unsqueeze(0).unsqueeze(1).to(self.device)
+        action, action_logprob, state_val = self.model.policy_old.act(state)
+            
+    self.model.buffer.states.append(state)
+    self.model.buffer.actions.append(torch.tensor(action_encoded))
+    self.model.buffer.logprobs.append(action_logprob)
+    self.model.buffer.state_values.append(state_val)
+    
+    
+    
+    reward = compute_reward_coin_pickup(events)
+    self.model.buffer.rewards.append(reward)
+    
     self.model.update()
     
-    self.model.save(self.checkpoint_path)
+    self.model.save(self.checkpoint_path_save)
 
 def compute_reward_coin_pickup(events):
     """Compute reward based on the events that occurred."""
@@ -117,11 +173,14 @@ def compute_reward_coin_pickup(events):
     if e.COIN_COLLECTED in events:
         reward += 20
     if e.KILLED_SELF in events:
-        reward -= 100
+        reward -= 50
+    if e.BOMB_DROPPED in events:
+        reward += 10
+    #if e.GOT_KILLED in events:
+    #    reward -= 50
     if e.INVALID_ACTION in events:
-        reward -= 10 
+        reward -= 30
     if e.WAITED in events:
-        reward -= 1
-    
-    
+        reward -= 10
+        
     return reward

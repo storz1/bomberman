@@ -12,11 +12,11 @@ def setup_training(self):
     current_path_to_game = os.getcwd()
     
     K_epochs = 20
-    eps_clip = 0.2
+    eps_clip = 0.8
     gamma = 0.99
     
-    lr_actor = 0.0003
-    lr_critic = 0.001
+    lr_actor = 0.1#0.03
+    lr_critic = 0.2
 
     self.log_dir = current_path_to_game +"/PPO_logs"
     if not os.path.exists(self.log_dir):
@@ -169,17 +169,17 @@ def end_of_round(self, last_game_state, last_action, events):
 
 def compute_reward_coin_pickup(events):
     """Compute reward based on the events that occurred."""
-    reward = 0
+    reward = 10
     if e.COIN_COLLECTED in events:
-        reward += 20
+        reward += 50
     if e.KILLED_SELF in events:
-        reward -= 50
+        reward -= 200
     if e.BOMB_DROPPED in events:
-        reward += 10
+        reward += 5
     #if e.GOT_KILLED in events:
     #    reward -= 50
     if e.INVALID_ACTION in events:
-        reward -= 30
+        reward -= 100
     if e.WAITED in events:
         reward -= 10
         

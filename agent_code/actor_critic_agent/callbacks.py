@@ -28,7 +28,6 @@ def preprocess_game_state(game_state):
     self_pos = game_state['self'][3]
     other_players = game_state['others']
     explosion_map = game_state['explosion_map']
-
     # Input all the information into the field map
 
     # First coins
